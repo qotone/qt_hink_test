@@ -46,6 +46,7 @@ void HinkOutputAo::onStart()
             data["clkSel"] = interfaceA["clkSel"].toBool();
 
 
+            //qDebug()<<interfaceA;
             if(data["interface"].toString() == "Mini-Out"){ // tlv320
 
                   data["mode"] = interfaceA["mode"].toString();
@@ -60,7 +61,10 @@ void HinkOutputAo::onStart()
             audioSample = (AUDIO_SAMPLE_RATE_E)data["samplerate"].toInt();
             aoDev = data["did"].toInt();
             aoChn = data["cid"].toInt();
-            HI_MPI_AO_GetPubAttr(aoDev,&stAioAttr);
+            //s32Ret =  HI_MPI_AO_GetPubAttr(aoDev,&stAioAttr);
+            //if(HI_SUCCESS != s32Ret){
+            //    qDebug("Error: Ao Get  dev = %d pub attr failed return 0x%x.",aoDev,s32Ret);
+            //}
             stAioAttr.enSamplerate = audioSample;//AUDIO_SAMPLE_RATE_8000;
             stAioAttr.enBitwidth = AUDIO_BIT_WIDTH_16;
             if(data["mode"].toString() == "i2ss"){
@@ -76,6 +80,7 @@ void HinkOutputAo::onStart()
             else
                 stAioAttr.enSoundmode = AUDIO_SOUND_MODE_STEREO;
             stAioAttr.u32EXFlag = 1;
+            stAioAttr.u32FrmNum = 30;
             stAioAttr.u32PtNumPerFrm = 320;
             stAioAttr.u32ChnCnt = data["chnCnt"].toUInt();
             stAioAttr.u32ClkChnCnt = stAioAttr.u32ChnCnt;
@@ -86,17 +91,26 @@ void HinkOutputAo::onStart()
 
             s32Ret = HI_MPI_AO_SetPubAttr(aoDev,&stAioAttr);
             if(HI_SUCCESS != s32Ret){
-
+                qDebug("Error: Ao set pub attr failed return 0x%x.",s32Ret);
             }
             s32Ret = HI_MPI_AO_Enable(aoDev);
             if(HI_SUCCESS != s32Ret){
 
+                qDebug()<<"Error: Ao enabled failed.";
             }
             s32Ret = HI_MPI_AO_EnableChn(aoDev,aoChn);
-
             if(HI_SUCCESS != s32Ret){
 
+                qDebug()<<"Error: Ao enabled  chn failed.";
             }
+
+            // test stere chn
+            s32Ret = HI_MPI_AO_EnableChn(aoDev,aoChn+1);
+            if(HI_SUCCESS != s32Ret){
+
+                qDebug()<<"Error: Ao enabled  chn failed.";
+            }
+            // end test
 
             infoSelfA.type = StreamInfo::Raw;
             infoSelfA.info["modId"] = HI_ID_AO;

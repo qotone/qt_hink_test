@@ -164,6 +164,17 @@ HinkObject * HinkObject::linkA(HinkObject *dst)
 
         HINK_CHECK_RET(HI_MPI_SYS_Bind(&stSrcChn, &stDestChn), "HI_MPI_SYS_Bind");
 
+        // test stere chn
+        stSrcChn.enModId = (MOD_ID_E)infoSelfA.info["modId"].toInt();
+        stSrcChn.s32DevId = infoSelfA.info["devId"].toInt();
+        stSrcChn.s32ChnId = infoSelfA.info["chnId"].toInt();
+
+        stDestChn.enModId = (MOD_ID_E)(dst->infoSelfA.info["modId"].toInt());
+        stDestChn.s32DevId = dst->infoSelfA.info["devId"].toInt();
+        stDestChn.s32ChnId  = dst->infoSelfA.info["chnId"].toInt() + 1;
+
+        HINK_CHECK_RET(HI_MPI_SYS_Bind(&stSrcChn, &stDestChn), "HI_MPI_SYS_Bind");
+        // end test
     }else {
         connect(this,SIGNAL(newPacketA(Packet)),dst,SLOT(onNewPacketA(Packet)));
     }

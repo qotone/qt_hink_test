@@ -2,6 +2,7 @@
 #include "Hink.h"
 #include "hi_comm_ai.h"
 #include "mpi_ai.h"
+#include "Tlv320.h"
 
 HinkInputAi::HinkInputAi(QObject *parent):HinkObject(parent)
 {
@@ -51,6 +52,12 @@ void HinkInputAi::onStart()
               if(interfaceA["chip"].toString() == "tlv32"){
                   data["mode"] = interfaceA["mode"].toString();
                   // config tlv32
+                  if(data["mode"].toString() == "i2ss"){
+                      Tlv320::init(true,data["samplerate"].toUInt());
+                  }else{
+
+                      Tlv320::init(false,data["samplerate"].toUInt());
+                  }
               }else{
                   qDebug()<<"Not support chip :"<<interfaceA["chip"].toString();
               }
@@ -81,6 +88,7 @@ void HinkInputAi::onStart()
             else
                 stAioAttr.enSoundmode = AUDIO_SOUND_MODE_STEREO;
             stAioAttr.u32EXFlag = 1;
+            stAioAttr.u32FrmNum = 30;
             stAioAttr.u32PtNumPerFrm = 320;
             stAioAttr.u32ChnCnt = data["chnCnt"].toUInt();
             stAioAttr.u32ClkChnCnt = stAioAttr.u32ChnCnt;

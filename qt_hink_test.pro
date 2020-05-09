@@ -68,6 +68,7 @@ SOURCES += \
         HinkOutputVo.cpp \
         Json.cpp \
         Sink.cpp \
+        Tlv320.cpp \
         channel.cpp \
         example_service.cpp \
         group.cpp \
@@ -93,6 +94,7 @@ HEADERS += \
     HinkOutputVo.h \
     Json.h \
     Sink.h \
+    Tlv320.h \
     channel.h \
     example_service.h \
     group.h \
