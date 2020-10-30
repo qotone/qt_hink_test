@@ -72,9 +72,9 @@ protected:
     QThread::Priority threadPriority;
 protected:
     char* bufferData(char *data,int size,int offset=0);
-//    void sendPacketA(Packet pkt);
+    void sendPacketA(Packet pkt);
     void sendPacketV(Packet pkt);
-//    void sendInfoA(StreamInfo info);
+    void sendInfoA(StreamInfo info);
     void sendInfoV(StreamInfo info);
 //    void sendEvent(QString type, QVariant msg);
 //    bool bufferPacketA(Packet pkt);
@@ -104,7 +104,7 @@ public slots:
     QString name();
     QString getState();
 
-//    virtual void onNewPacketA(Packet);
+    virtual void onNewPacketA(Packet);
     virtual void onNewPacketV(Packet);
 //    virtual void onUnLinkA(StreamInfo);
 //    virtual void onUnLinkV(StreamInfo);
@@ -116,7 +116,7 @@ private slots:
 //    void onNewInfoVPriv(StreamInfo info);
 //    void onSetDataPriv(QVariantMap data);
 //    QVariantMap doGetData();
-//    virtual void onNewInfoA(StreamInfo);
+    virtual void onNewInfoA(StreamInfo);
     virtual void onNewInfoV(StreamInfo);
     virtual void onSetData(QVariantMap);
     virtual void onStart();

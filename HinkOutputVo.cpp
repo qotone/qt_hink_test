@@ -114,7 +114,7 @@ void HinkOutputVo::onStart()
     HINK_RECT_S stRect;
     VO_PUB_ATTR_S stVoAttr;
     VO_VIDEO_LAYER_ATTR_S stLayerAttr;
-    VO_CHN voChn = 0;
+    VO_CHN voChn = voCount;
 //    VO_DEV voDev = HINK_VO_DEV_DHD0;
     int _type = 0;
     int _mode = outputMap.value(data["output"].toString());
@@ -151,8 +151,19 @@ void HinkOutputVo::onStart()
     s32Ret = hink_vo_startChn(voCount,voChn,&stRect);
     if(_type & VO_INTF_HDMI){
         s32Ret = hink_vo_startHdmi(stVoAttr.enIntfSync,HI_TRUE);
+    //infoSelfV.type = StreamInfo::VPSS;
+    //infoSelfV.info["modId"] = HI_ID_VOU;
+    //infoSelfV.info["devId"] = 0;
+    //infoSelfV.info["chnId"] = 0;
     }
 
+    //else if(_type & VO_INTF_BT1120){
+    //    s32Ret = hink_vo_startHdmi(stVoAttr.enIntfSync,HI_TRUE);
+    //infoSelfV.type = StreamInfo::VPSS;
+    //infoSelfV.info["modId"] = HI_ID_VOU;
+    //infoSelfV.info["devId"] = 1;
+    //infoSelfV.info["chnId"] = 1;
+    //}
     infoSelfV.type = StreamInfo::VPSS;
     infoSelfV.info["modId"] = HI_ID_VOU;
     infoSelfV.info["devId"] = voCount;

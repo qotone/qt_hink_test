@@ -23,7 +23,6 @@
 #include "HinkInputAi.h"
 #include "HinkOutputAo.h"
 #include "Sink.h"
-#include "TokenBucketSink.h"
 #include "HinkDecodeA.h"
 #include "HinkInputTinyalsa.h"
 #include "filewrite.h"
@@ -32,11 +31,6 @@
 #include <signal.h>
 #include "unixsignalhandler.h"
 #include "unixsignalnotifier.h"
-#include "hi_common.h"
-#include "hi_comm_sys.h"
-#include "hi_comm_vb.h"
-#include "mpi_sys.h"
-#include "mpi_vb.h"
 
 rpc *GRPC;
 
@@ -91,36 +85,6 @@ int main(int argc, char *argv[])
     dataVi["interface"]="HDMI-A";
     vi->start(dataVi);
 
-    HinkObject *venc = Hink::create("HinkEncodeV");
-    QVariantMap dataVenc;
-    dataVenc["codec"] = "h265"; // "h264,h265,jpeg
-    dataVenc["width"] = 1920;
-    dataVenc["height"] = 1080;
-    dataVenc["framerate"] = 30;
-
-    dataVenc["bitrate"] = 1152;
-    dataVenc["gop"] = 1;
-    venc->start(dataVenc);
-
-    HinkObject *sink = new Sink();
-    //HinkObject *sink = new TokenBucketSink();
-    QVariantMap dataSink;
-    dataSink["ip"] = "192.168.16.119";
-    //dataSink["ip"] = "192.168.16.98";
-    dataSink["dataPort"] = 8008;
-    dataSink["payload"] = 110;
-    dataSink["payloadType"] = "H265";
-    sink->start(dataSink);
-
-    vi->linkV(venc)->linkV(sink);
-
-    //HinkObject *vdec = Hink::create("HinkDecodeV");
-    //vdec->start();
-
-    //vi->linkV(venc)->linkV(vdec)->linkV(vo_hdmi);
-    //vi->linkV(venc)->linkV(vdec)->linkV(vo_bt1120);
-
-#if 0
     HinkObject *usbcam = Hink::create("HinkInputV4l2");
     QVariantMap dataUsb;
     dataUsb["width"] = 1920;
@@ -131,10 +95,9 @@ int main(int argc, char *argv[])
     vdec->start();
 
     usbcam->linkV(vdec)->linkV(vo_hdmi);
-#endif // end of if 0
-    //vi->linkV(vo_bt1120);
+    vi->linkV(vo_bt1120);
 #endif
-    //vi->linkV(vo_hdmi);
+    //vi->linkV(vo);
 #if 0
     HinkObject *venc = Hink::create("HinkEncodeV");
     QVariantMap dataVenc;
@@ -160,32 +123,6 @@ int main(int argc, char *argv[])
 #endif
     //QObject::connect(new UnixSignalHandler(SIGTERM,&a), &UnixSignalHandler::raised, &a, &QCoreApplication::quit);
     //QObject::connect(new UnixSignalHandler(SIGINT,&a), &UnixSignalHandler::raised, &a, &QCoreApplication::quit);
-    QObject::connect(QCoreApplication::instance(),&QCoreApplication::aboutToQuit,[=](){
-
-        delete vo_hdmi;
-        delete vo_bt1120;
-        delete vi;
-        delete venc;
-        //delete vdec;
-        //delete file_write;
-        //delete aenc;
-        //aenc->deleteLater();
-        delete sink;
-        //delete playback;
-        //ao_alsa->deleteLater();
-        //delete ao_alsa;
-
-        HI_MPI_SYS_Exit();
-        for(int i=0;i<VB_MAX_USER;i++)
-        {
-             HI_MPI_VB_ExitModCommPool(i);
-        }
-        for(int i=0; i<VB_MAX_POOLS; i++)
-        {
-             HI_MPI_VB_DestroyPool(i);
-        }
-        HI_MPI_VB_Exit();
-    });
 
     // Make sure that the application terminates cleanly on various unix signals.
     QObject::connect(UnixSignalNotifier::instance(), SIGNAL(unixSignal(int)), &a, SLOT(quit()));

@@ -10,6 +10,11 @@
 #include "HinkEncodeV.h"
 #include "HinkOutputAo.h"
 #include "HinkInputAi.h"
+#include "HinkDecodeA.h"
+#include "HinkInputTinyalsa.h"
+#include "HinkEncodeA.h"
+#include "HinkOutputAlsa.h"
+#include "HinkInputAlsa.h"
 
 //#include "hi_comm_sys.h"
 //#include "mpi_sys.h"
@@ -112,6 +117,11 @@ bool Hink::init(bool sys)
 
     registerClass<HinkInputAi>();
     registerClass<HinkOutputAo>();
+    registerClass<HinkInputTinyalsa>();
+    registerClass<HinkDecodeA>();
+    registerClass<HinkEncodeA>();
+    registerClass<HinkOutputAlsa>();
+    registerClass<HinkInputAlsa>();
 
     return true;
 }
@@ -167,6 +177,7 @@ bool Hink::initSys()
     decBufCnt = decList[0].toMap()["cnt"].toInt();
     decBufSize = decList[0].toMap()["size"].toInt();
 
+    hink_sys_unInit();
     hink_sys_init((HI_U32)sysBufSize,(HI_U32)sysBufCnt);
     //hink_sys_init(3110400,40);//3110400
     //hink_sys_init(12441600,18);

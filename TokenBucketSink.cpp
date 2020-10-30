@@ -1,4 +1,4 @@
-#include "Sink.h"
+#include "TokenBucketSink.h"
 #include "Json.h"
 
 // ireader libs include
@@ -13,6 +13,14 @@
 #define MAX_RTP_PKT_LENGTH  1400
 #define DefaultTimestampIncrement 3000  //(90000/30)
 #endif
+
+#include "token_bucket.h"
+#include "TokenBucket.h"
+#include <unistd.h>
+#define RATE_BPS      (2000000UL)
+#define INTERVAL      (50)
+#define SCALE         (0.5)
+#define BUF_MAX       (100)
 
 static void *pEncoder;
 static struct rtp_payload_t handler;
@@ -34,17 +42,38 @@ static void rtp_free(void *param, void *packet)
 
 static void rtp_encode_packet(void *param, const void *packet, int bytes, uint32_t timestamp, int flags)
 {
-    Sink *sik = (Sink *)param;
+    TokenBucketSink *sik = (TokenBucketSink *)param;
     //qDebug()<<"send data to "<<sik->ip<<" : "<<sik->dataPort;
-#if 1
+
+    TokenBucketSink::RtpPacket rtp_pack;
+    rtp_pack.pdata = (unsigned char *)malloc(bytes);
+    if(rtp_pack.pdata){
+        memcpy(rtp_pack.pdata,packet,bytes);
+
+        rtp_pack.len = bytes;
+        sik->rtpbuffer.lock.lockForWrite();
+        if(sik->rtpbuffer.buffer.count() > BUF_MAX){
+            TokenBucketSink::RtpPacket rtp_pack1;
+            rtp_pack1 = sik->rtpbuffer.buffer.first();
+            if(rtp_pack1.pdata){
+                free(rtp_pack1.pdata);
+            }
+            sik->rtpbuffer.buffer.removeFirst();
+            qDebug()<<"RtpBuffer is over than "<<BUF_MAX;
+        }
+        sik->rtpbuffer.buffer.push_back(rtp_pack);
+        sik->rtpbuffer.lock.unlock();
+
+    }else{
+        qDebug()<<"memory malloc failed!";
+    }
+#if 0
     sik->socket.writeDatagram((char *)packet,bytes,sik->ip,sik->dataPort);
-#else
-    int r = socket_sendto(sik->m_udp, packet, bytes, 0, (struct sockaddr*) &sik->m_ss/* (struct sockaddr*)&addr */, sik->m_addrLen /* addrlen */);
 #endif
     //qDebug()<<"[RTP]\tbytes:"<<bytes<<"ip:"<<sik->ip<<"port:"<<sik->dataPort;
 }
 
-Sink::Sink(QObject *parent) : HinkObject(parent),socket(this)
+TokenBucketSink::TokenBucketSink(QObject *parent): HinkObject(parent),socket(this)
 {
     data["memSize"]=4096000;//4M
     data["dataPort"]=5000;
@@ -69,19 +98,155 @@ Sink::Sink(QObject *parent) : HinkObject(parent),socket(this)
     rtp_session_set_payload_type(pRtpSession,Y_PLOAD_TYPE);
     rtp_session_set_ssrc(pRtpSession,0x1212);
 #endif
+    m_tb = token_bucket_init(RATE_BPS,INTERVAL,SCALE);
+    m_bRuning = true;
+    pthread_create(&m_thid,NULL,threadStub,this);
+
+    pthread_create(&m_thid_snd,NULL,send_threadStub,this);
+
 }
 
-Sink::~Sink()
+TokenBucketSink::~TokenBucketSink()
 {
-#if 0
-    rtp_session_destroy(pRtpSession);
-    ortp_exit();
-    ortp_global_stats_display();
-#endif
-    qDebug()<<"Sink Destruct.";
+    RtpPacket data;
+    qDebug()<<"TokenBucketSink destruct.....";
+    m_bRuning = false;
+    pthread_join(m_thid,NULL);
+    pthread_join(m_thid_snd,NULL);
+    token_bucket_destroy(m_tb);
+    while(!rtpbuffer.buffer.empty()){
+        data = rtpbuffer.buffer.first();
+        if(data.pdata){
+            free(data.pdata);
+            rtpbuffer.buffer.removeFirst();
+        }else{
+            break;
+        }
+    }
+    rtpbuffer.buffer.clear();
 }
 
-void Sink::onStart()
+void * TokenBucketSink::token_thread()
+{
+
+    uint64_t add_tokens = m_tb->add_tokens;
+    while(m_bRuning){
+        //qDebug()<<"token_bucket added..."<<add_tokens<<" bytes.";
+       token_bucket_add_tokens(m_tb,add_tokens);
+       usleep(m_tb->interval * 1000);
+
+    }
+
+    qDebug()<<"token_thread exit";
+    return NULL;
+
+}
+#if 1
+void * TokenBucketSink::send_thread()
+{
+    bool bStop = 0;
+    RtpPacket rtp_pack;
+    enum token_bucket_action ret;
+    TokenBucket t(250000, 2000000);
+    while(m_bRuning){
+        rtpbuffer.lock.lockForRead();
+        if(!rtpbuffer.buffer.empty()){
+
+#if 1
+
+           #if 0
+            rtp_pack = rtpbuffer.buffer.first();
+            rtpbuffer.buffer.removeFirst();
+            rtpbuffer.lock.unlock();
+
+            if(rtp_pack.pdata == NULL || rtp_pack.len == 0){
+                break;
+            }
+
+            token_bucket_get_tokens(m_tb,rtp_pack.len );
+            socket.writeDatagram((char *)rtp_pack.pdata,rtp_pack.len,ip,dataPort);
+            free(rtp_pack.pdata);
+
+           #else
+
+            rtp_pack = rtpbuffer.buffer.first();
+            rtpbuffer.buffer.removeFirst();
+            rtpbuffer.lock.unlock();
+
+            if(rtp_pack.pdata == NULL || rtp_pack.len == 0){
+                break;
+            }
+
+//            if (t.consume(rtp_pack.len)) {
+              //send bs octets
+            qDebug("send %d bytes.",rtp_pack.len);
+              socket.writeDatagram((char *)rtp_pack.pdata,rtp_pack.len,ip,dataPort);
+//            } else {
+//                qDebug()<<"stucked.";
+//                usleep(1000);
+//            }
+            free(rtp_pack.pdata);
+            #endif
+
+#else
+
+            rtp_pack = rtpbuffer.buffer.first();
+            rtpbuffer.buffer.removeFirst();
+            rtpbuffer.lock.unlock();
+
+            if(rtp_pack.pdata == NULL || rtp_pack.len == 0){
+                break;
+            }
+
+            //token_bucket_get_tokens(m_tb,rtp_pack.len*8 );
+            ret = token_bucket_try_get_tokens(m_tb, rtp_pack.len);
+            if (ret == TB_SUCCESS) {
+            socket.writeDatagram((char *)rtp_pack.pdata,rtp_pack.len,ip,dataPort);
+            }else{
+                qDebug()<<"token_sucked!";
+                /*sleep half of interval to wait new tokens*/
+                usleep(m_tb->interval * 1000 / 2);
+            }
+            free(rtp_pack.pdata);
+#endif
+        }else {
+            rtpbuffer.lock.unlock();
+            usleep(1000);
+        }
+
+
+    }
+
+    qDebug()<<"send_thread exit";
+    return NULL;
+
+}
+#else
+void * TokenBucketSink::send_thread()
+{
+    RtpPacket rtp_pack;
+    enum token_bucket_action ret;
+    while(m_bRuning){
+        token_bucket_get_tokens(m_tb,1500);
+        rtpbuffer.lock.lockForRead();
+        if(!rtpbuffer.buffer.empty()){
+            rtp_pack = rtpbuffer.buffer.first();
+            rtpbuffer.buffer.removeFirst();
+            rtpbuffer.lock.unlock();
+            if(rtp_pack.pdata == NULL || rtp_pack.len == 0){
+                break;
+            }
+            socket.writeDatagram((char *)rtp_pack.pdata,rtp_pack.len,ip,dataPort);
+            free(rtp_pack.pdata);
+        }else{
+            rtpbuffer.lock.unlock();
+            usleep(1000);
+        }
+    }
+    return NULL;
+}
+#endif
+void TokenBucketSink::onStart()
 {
     socket.bind();
     socket.setSocketOption(QAbstractSocket::SendBufferSizeSocketOption,256 * 1024);
@@ -105,7 +270,7 @@ void Sink::onStart()
 #endif
 }
 
-bool Sink::isNalu3Start(unsigned char *buffer)
+bool TokenBucketSink::isNalu3Start(unsigned char *buffer)
 {
     if (buffer[0] != 0 || buffer[1] != 0 || buffer[2] != 1) {
         return false;
@@ -114,7 +279,7 @@ bool Sink::isNalu3Start(unsigned char *buffer)
     }
 }
 
-bool Sink::isNalu4Start(unsigned char *buffer)
+bool TokenBucketSink::isNalu4Start(unsigned char *buffer)
 {
     if (buffer[0] != 0 || buffer[1] != 0 || buffer[2] != 0 || buffer[3] != 1) {
         return false;
@@ -123,7 +288,7 @@ bool Sink::isNalu4Start(unsigned char *buffer)
     }
 }
 
-void Sink::sendFrame(uint8_t *buffer, int len, uint32_t userts)
+void TokenBucketSink::sendFrame(uint8_t *buffer, int len, uint32_t userts)
 {
 #if 0
     unsigned char NALU = buffer[4];
@@ -184,12 +349,12 @@ void Sink::sendFrame(uint8_t *buffer, int len, uint32_t userts)
 #endif
 }
 
-void Sink::onStop()
+void TokenBucketSink::onStop()
 {
     socket.close();
 }
 
-void Sink::onSetData(QVariantMap newData)
+void TokenBucketSink::onSetData(QVariantMap newData)
 {
     dataPort=data["dataPort"].toInt();
     infoPort=data["infoPort"].toInt();
@@ -198,7 +363,7 @@ void Sink::onSetData(QVariantMap newData)
         onNewInfoV(infoSelfV);
 }
 
-void Sink::onNewInfoV(StreamInfo info)
+void TokenBucketSink::onNewInfoV(StreamInfo info)
 {
     infoSrcV=info;
 
@@ -207,9 +372,9 @@ void Sink::onNewInfoV(StreamInfo info)
 }
 //static bool lastIFrame = false;
 static int count = 0;
-#include "hi_comm_venc.h"
-#include "mpi_venc.h"
-void Sink::onNewPacketV(HinkObject::Packet pkt)
+//#include "hi_comm_venc.h"
+//#include "mpi_venc.h"
+void TokenBucketSink::onNewPacketV(HinkObject::Packet pkt)
 {
     if(ip.isNull())
         return;
@@ -266,8 +431,8 @@ void Sink::onNewPacketV(HinkObject::Packet pkt)
     }
 #endif
 
-    if(pkt.len > 10000)
-    qDebug( "nal type = %d,len = %d.",(pkt.data[4] & 0x7E) >> 1,pkt.len);
+    //if(pkt.len > 10000)
+    //qDebug( "nal type = %d,len = %d.",(pkt.data[4] & 0x7E) >> 1,pkt.len);
     //if((pkt.data[4]& 0x7e >> 1) == 32)
     //    return;
     rtp_payload_encode_input(pEncoder,pkt.data,pkt.len,pkt.pts);
@@ -280,7 +445,7 @@ void Sink::onNewPacketV(HinkObject::Packet pkt)
     //socket.writeDatagram(buf,pkt.len+sizeof(PktHeader),ip,dataPort);
 }
 
-void Sink::onNewPacketA(HinkObject::Packet pkt)
+void TokenBucketSink::onNewPacketA(HinkObject::Packet pkt)
 {
     if(ip.isNull())
         return;
@@ -296,4 +461,3 @@ void Sink::onNewPacketA(HinkObject::Packet pkt)
     //qDebug()<<tr("pkt data = %1").arg(pkt.data[5]);
     //socket.writeDatagram(buf,pkt.len+sizeof(PktHeader),ip,dataPort);
 }
-

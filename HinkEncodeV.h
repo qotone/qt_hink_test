@@ -32,6 +32,7 @@ private:
     static HI_U64 pts;
     QSocketNotifier *notifier;
 
+    int vencSetQp(VENC_CHN VencChn);
     bool resetVencChnAttr(QString payloadType,QString rcMode);
 };
 

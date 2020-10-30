@@ -23,7 +23,7 @@
 #include "HinkInputAi.h"
 #include "HinkOutputAo.h"
 #include "Sink.h"
-#include "TokenBucketSink.h"
+#include "Source.h"
 #include "HinkDecodeA.h"
 #include "HinkInputTinyalsa.h"
 #include "filewrite.h"
@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
     QVariantMap dataVo_hdmi;
     dataVo_hdmi["type"] = "hdmi";
     dataVo_hdmi["output"] = "1080P60";
+    //dataVo_hdmi["output"] = "3840x2160_60";//"1080P60";
     vo_hdmi->start(dataVo_hdmi);
 
 
@@ -83,42 +84,46 @@ int main(int argc, char *argv[])
 #endif
 
 #if 1
-    HinkObject *vi = Hink::create("HinkInputVi");
-    QVariantMap dataVi;
+    //HinkObject *vi = Hink::create("HinkInputVi");
+    //QVariantMap dataVi;
 
-    dataVi["width"] = 1920;
-    dataVi["height"] = 1080;
-    dataVi["interface"]="HDMI-A";
-    vi->start(dataVi);
+    //dataVi["width"] = 1920;
+    //dataVi["height"] = 1080;
+    //dataVi["interface"]="HDMI-A";
+    //vi->start(dataVi);
 
-    HinkObject *venc = Hink::create("HinkEncodeV");
-    QVariantMap dataVenc;
-    dataVenc["codec"] = "h265"; // "h264,h265,jpeg
-    dataVenc["width"] = 1920;
-    dataVenc["height"] = 1080;
-    dataVenc["framerate"] = 30;
+    //HinkObject *venc = Hink::create("HinkEncodeV");
+    //QVariantMap dataVenc;
+    //dataVenc["codec"] = "h265"; // "h264,h265,jpeg
+    //dataVenc["width"] = 1920;
+    //dataVenc["height"] = 1080;
+    //dataVenc["framerate"] = 30;
 
-    dataVenc["bitrate"] = 1152;
-    dataVenc["gop"] = 1;
-    venc->start(dataVenc);
+    //dataVenc["bitrate"] = 1152;
+    //dataVenc["gop"] = 4;
+    //venc->start(dataVenc);
 
-    HinkObject *sink = new Sink();
-    //HinkObject *sink = new TokenBucketSink();
-    QVariantMap dataSink;
-    dataSink["ip"] = "192.168.16.119";
+    //HinkObject *sink = new Sink();
+    //QVariantMap dataSink;
     //dataSink["ip"] = "192.168.16.98";
-    dataSink["dataPort"] = 8008;
-    dataSink["payload"] = 110;
-    dataSink["payloadType"] = "H265";
-    sink->start(dataSink);
+    //dataSink["dataPort"] = 8008;
+    //dataSink["payload"] = 110;
+    //dataSink["payloadType"] = "H265";
+    //sink->start(dataSink);
 
-    vi->linkV(venc)->linkV(sink);
+    //vi->linkV(venc)->linkV(sink);
 
-    //HinkObject *vdec = Hink::create("HinkDecodeV");
-    //vdec->start();
+    HinkObject *vdec = Hink::create("HinkDecodeV");
+    vdec->start();
 
     //vi->linkV(venc)->linkV(vdec)->linkV(vo_hdmi);
     //vi->linkV(venc)->linkV(vdec)->linkV(vo_bt1120);
+
+    HinkObject *src = new Source();
+    src->start();
+
+
+    src->linkV(vdec)->linkV(vo_hdmi);
 
 #if 0
     HinkObject *usbcam = Hink::create("HinkInputV4l2");
@@ -164,16 +169,17 @@ int main(int argc, char *argv[])
 
         delete vo_hdmi;
         delete vo_bt1120;
-        delete vi;
-        delete venc;
-        //delete vdec;
+        //delete vi;
+        //delete venc;
+        delete vdec;
         //delete file_write;
         //delete aenc;
         //aenc->deleteLater();
-        delete sink;
+        //delete sink;
         //delete playback;
         //ao_alsa->deleteLater();
         //delete ao_alsa;
+        delete src;
 
         HI_MPI_SYS_Exit();
         for(int i=0;i<VB_MAX_USER;i++)

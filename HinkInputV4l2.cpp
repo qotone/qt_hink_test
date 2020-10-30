@@ -69,6 +69,8 @@ void HinkInputV4l2::onStart()
     uvc = uvc_open(data["path"].toString().toStdString().c_str());
     if(uvc)
         qDebug()<<tr("open %1 successed.").arg(data["path"].toString());
+    else
+        return;
 
 
     uvcParam.width = data["width"].toInt();

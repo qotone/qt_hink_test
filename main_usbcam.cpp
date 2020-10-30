@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 
     GRPC = new rpc();
     GRPC->init();
-#if 1
+#if 0
    #if 0
     HinkObject *vo_mon=Hink::create("HinkOutputVo");
     QVariantMap dataVo;
@@ -83,13 +83,13 @@ int main(int argc, char *argv[])
 #endif
 
 #if 1
-    HinkObject *vi = Hink::create("HinkInputVi");
-    QVariantMap dataVi;
+    //HinkObject *vi = Hink::create("HinkInputVi");
+    //QVariantMap dataVi;
 
-    dataVi["width"] = 1920;
-    dataVi["height"] = 1080;
-    dataVi["interface"]="HDMI-A";
-    vi->start(dataVi);
+    //dataVi["width"] = 1920;
+    //dataVi["height"] = 1080;
+    //dataVi["interface"]="HDMI-A";
+    //vi->start(dataVi);
 
     HinkObject *venc = Hink::create("HinkEncodeV");
     QVariantMap dataVenc;
@@ -105,14 +105,14 @@ int main(int argc, char *argv[])
     HinkObject *sink = new Sink();
     //HinkObject *sink = new TokenBucketSink();
     QVariantMap dataSink;
-    dataSink["ip"] = "192.168.16.119";
+    dataSink["ip"] = "192.168.9.119";
     //dataSink["ip"] = "192.168.16.98";
     dataSink["dataPort"] = 8008;
     dataSink["payload"] = 110;
     dataSink["payloadType"] = "H265";
     sink->start(dataSink);
 
-    vi->linkV(venc)->linkV(sink);
+    //vi->linkV(venc)->linkV(sink);
 
     //HinkObject *vdec = Hink::create("HinkDecodeV");
     //vdec->start();
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
     //vi->linkV(venc)->linkV(vdec)->linkV(vo_hdmi);
     //vi->linkV(venc)->linkV(vdec)->linkV(vo_bt1120);
 
-#if 0
+#if 1
     HinkObject *usbcam = Hink::create("HinkInputV4l2");
     QVariantMap dataUsb;
     dataUsb["width"] = 1920;
@@ -128,9 +128,12 @@ int main(int argc, char *argv[])
     dataUsb["framerate"] = 30;
     usbcam->start(dataUsb);
     HinkObject *vdec = Hink::create("HinkDecodeV");
-    vdec->start();
+    QVariantMap dataVdec;
+    dataVdec["block"] = false;
+    vdec->start(dataVdec);
 
-    usbcam->linkV(vdec)->linkV(vo_hdmi);
+    //usbcam->linkV(vdec)->linkV(vo_hdmi);
+    usbcam->linkV(vdec)->linkV(venc)->linkV(sink);
 #endif // end of if 0
     //vi->linkV(vo_bt1120);
 #endif
@@ -162,11 +165,12 @@ int main(int argc, char *argv[])
     //QObject::connect(new UnixSignalHandler(SIGINT,&a), &UnixSignalHandler::raised, &a, &QCoreApplication::quit);
     QObject::connect(QCoreApplication::instance(),&QCoreApplication::aboutToQuit,[=](){
 
-        delete vo_hdmi;
-        delete vo_bt1120;
-        delete vi;
+        //delete vo_hdmi;
+        //delete vo_bt1120;
+        //delete vi;
+        delete usbcam;
         delete venc;
-        //delete vdec;
+        delete vdec;
         //delete file_write;
         //delete aenc;
         //aenc->deleteLater();
@@ -178,7 +182,7 @@ int main(int argc, char *argv[])
         HI_MPI_SYS_Exit();
         for(int i=0;i<VB_MAX_USER;i++)
         {
-             HI_MPI_VB_ExitModCommPool(i);
+             HI_MPI_VB_ExitModCommPool((VB_UID_E)i);
         }
         for(int i=0; i<VB_MAX_POOLS; i++)
         {

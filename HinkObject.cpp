@@ -117,6 +117,17 @@ void HinkObject::onNewInfoV(StreamInfo info)
 
 }
 
+void HinkObject::onNewPacketA(Packet p)
+{
+
+}
+
+void HinkObject::onNewInfoA(StreamInfo info)
+{
+
+}
+
+
 HinkObject * HinkObject::linkV(HinkObject *dst)
 {
     connect(this,SIGNAL(newInfoV(StreamInfo)),dst,SLOT(onNewInfoV(StreamInfo)));
@@ -148,7 +159,7 @@ HinkObject * HinkObject::linkA(HinkObject *dst)
 {
 
     connect(this,SIGNAL(newInfoA(StreamInfo)),dst,SLOT(onNewInfoA(StreamInfo)));
-    if(this->infoSelfA.type == StreamInfo::Raw){
+    if(this->infoSelfA.type == StreamInfo::VPSS){
         MPP_CHN_S stSrcChn;
         MPP_CHN_S stDestChn;
         stSrcChn.enModId = (MOD_ID_E)infoSelfA.info["modId"].toInt();
@@ -163,7 +174,7 @@ HinkObject * HinkObject::linkA(HinkObject *dst)
         qDebug()<<"dest:"<<dst->infoSelfA.info;
 
         HINK_CHECK_RET(HI_MPI_SYS_Bind(&stSrcChn, &stDestChn), "HI_MPI_SYS_Bind");
-
+#if 1
         // test stere chn
         stSrcChn.enModId = (MOD_ID_E)infoSelfA.info["modId"].toInt();
         stSrcChn.s32DevId = infoSelfA.info["devId"].toInt();
@@ -175,6 +186,7 @@ HinkObject * HinkObject::linkA(HinkObject *dst)
 
         HINK_CHECK_RET(HI_MPI_SYS_Bind(&stSrcChn, &stDestChn), "HI_MPI_SYS_Bind");
         // end test
+#endif
     }else {
         connect(this,SIGNAL(newPacketA(Packet)),dst,SLOT(onNewPacketA(Packet)));
     }
@@ -203,6 +215,17 @@ void HinkObject::sendInfoV(StreamInfo info)
 {
     emit(newInfoV(info));
 }
+
+void HinkObject::sendPacketA(Packet pkt)
+{
+    emit(newPacketA(pkt));
+}
+
+void HinkObject::sendInfoA(StreamInfo info)
+{
+    emit(newInfoA(info));
+}
+
 
 QString HinkObject::getState()
 {

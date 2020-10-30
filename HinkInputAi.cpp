@@ -1,10 +1,8 @@
 #include "HinkInputAi.h"
 #include "Hink.h"
-#include "hi_comm_ai.h"
-#include "mpi_ai.h"
 #include "Tlv320.h"
 
-HinkInputAi::HinkInputAi(QObject *parent):HinkObject(parent)
+HinkInputAi::HinkInputAi(QObject *parent):HinkObject(parent),m_fd(-1),m_buf(NULL)
 {
     data["interface"] = "";
     data["samplerate"] = 48000;
@@ -12,6 +10,7 @@ HinkInputAi::HinkInputAi(QObject *parent):HinkObject(parent)
     data["mode"] = "i2ss";
     data["channels"] = 1;
     data["chnCnt"] = 2;
+    data["ptNumPerFrm"] = 85;//256;//320; ----->//16K//48K//hisi origal ,this value is equal to the alsa Period_size
     data["clkSel"] = true;
     data["buf"] = 5;
     data["delay"] = 0;
@@ -25,12 +24,27 @@ HinkInputAi::HinkInputAi(QObject *parent):HinkObject(parent)
     data["aeccid"] = 0;
 }
 
+HinkInputAi::~HinkInputAi()
+{
+    qDebug()<<"HinkInputAi Destruct.";
+
+    HI_MPI_AI_DisableChn(this->aiDev,this->aiChn);
+    HI_MPI_AI_Disable(this->aiDev);
+    if(m_fd != -1){
+        //this->notifier->disconnect()
+        delete this->notifier;
+    }
+
+    if(m_buf!=NULL){
+        delete [] m_buf;
+    }
+
+}
+
 void HinkInputAi::onStart()
 {
 
     HI_S32 s32Ret = HI_SUCCESS;
-    AUDIO_DEV aiDev;
-    AI_CHN aiChn;
     AIO_ATTR_S stAioAttr;
 
 
@@ -89,7 +103,7 @@ void HinkInputAi::onStart()
                 stAioAttr.enSoundmode = AUDIO_SOUND_MODE_STEREO;
             stAioAttr.u32EXFlag = 1;
             stAioAttr.u32FrmNum = 30;
-            stAioAttr.u32PtNumPerFrm = 320;
+            stAioAttr.u32PtNumPerFrm = data["ptNumPerFrm"].toUInt();//320;
             stAioAttr.u32ChnCnt = data["chnCnt"].toUInt();
             stAioAttr.u32ClkChnCnt = stAioAttr.u32ChnCnt;
             if(data["clkSel"].toBool())
@@ -111,10 +125,38 @@ void HinkInputAi::onStart()
 
             }
 
-            infoSelfA.type = StreamInfo::Raw;
+#if 0
+            infoSelfA.type = StreamInfo::VPSS;
             infoSelfA.info["modId"] = HI_ID_AI;
             infoSelfA.info["devId"] = aiDev;
             infoSelfA.info["chnId"] = aiChn;
+#else
+            {
+
+               infoSelfA.type = StreamInfo::Raw;
+               AI_CHN_PARAM_S stAiChnPara;
+                s32Ret = HI_MPI_AI_GetChnParam(aiDev,aiChn,&stAiChnPara);
+
+               if(HI_SUCCESS != s32Ret){
+
+               }
+               stAiChnPara.u32UsrFrmDepth = 30;
+               s32Ret = HI_MPI_AI_SetChnParam(aiDev, aiChn, &stAiChnPara);
+               if(HI_SUCCESS != s32Ret){
+
+               }
+
+               m_fd = HI_MPI_AI_GetFd(aiDev,aiChn);
+               m_buf = new int8_t[data["ptNumPerFrm"].toUInt()*2*2];
+               //qDebug()<<"begin...m_fd = "<<m_fd;
+               this->notifier = new QSocketNotifier(m_fd,QSocketNotifier::Read,this);
+               //qDebug()<<"new ...";
+               connect(this->notifier,SIGNAL(activated(int)),this,SLOT(onReadData()));
+
+               //qDebug()<<"connect...";
+
+            }
+#endif
         }
     }
 
@@ -122,5 +164,41 @@ void HinkInputAi::onStart()
 
 void HinkInputAi::onSetData(QVariantMap map)
 {
+
+}
+
+void HinkInputAi::onReadData()
+{
+    HinkObject::Packet pkt;
+    HI_S32 s32Ret;
+    AUDIO_FRAME_S stFrame;
+    s32Ret = HI_MPI_AI_GetFrame(aiDev,aiChn, &stFrame, NULL, HI_FALSE);
+    if (HI_SUCCESS != s32Ret ){
+        qDebug("%s error!",__FUNCTION__);
+        return;
+    }
+    //qDebug()<<"ai read ....."<<stFrame.u32Len<<" betyes.";
+#if 1
+    for (uint32_t i = 0; i < stFrame.u32Len; i+=2){
+        memcpy(m_buf+2*i,(void *)(stFrame.pVirAddr[0] + i), 2);
+        memcpy(m_buf+2*(i+1),(void *)(stFrame.pVirAddr[1] + i), 2);
+    }
+#endif
+    //memcpy(m_buf,stFrame.pVirAddr[0],stFrame.u32Len);
+    //memcpy(m_buf+stFrame.u32Len,stFrame.pVirAddr[1],stFrame.u32Len);
+    pkt.data = m_buf;
+    pkt.len = stFrame.u32Len * 2;
+    pkt.pts = stFrame.u64TimeStamp;
+    pkt.dts = 0;
+    pkt.sender = this;
+    emit(newPacketA(pkt));
+
+    /* finally you must release the stream */
+    s32Ret = HI_MPI_AI_ReleaseFrame(aiDev, aiChn, &stFrame, NULL);
+    if (HI_SUCCESS != s32Ret )
+    {
+         qDebug("%s: HI_MPI_AI_ReleaseFrame(%d, %d), failed with %#x!\n",\
+                __FUNCTION__, aiDev, aiChn, s32Ret);
+    }
 
 }
